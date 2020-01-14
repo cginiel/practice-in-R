@@ -1,0 +1,296 @@
+---
+title: "Problem Set 3 - Boston"
+author: "SI 544 Instruction Team"
+date: "11/15/2019"
+output: html_document
+---
+
+## Introduction
+
+The total score for this assignment will be 100 points, consisting of:
+  - 90 points: Homework Questions
+  - 10 points: Overall quality of spelling, grammar, punctuation, etc. of written sentences.
+  
+As in lecture and discussion, there are several ways to approach and answer these questions! There may not be a "best solution", but instead a variety of ways to interpret and analyze a given task. Be thoughtful in your responses below your code to explain why you chose the methods and representations in your analysis when prompted for a response.
+
+For further reference regarding quality writing, feel free to refer to Strunk & White's Elements of Style: https://drive.google.com/file/d/1L0P7xJwjUGBvyb49mL3dw1Bt7hzRTiTl/view?usp=sharing 
+
+## The Data
+
+The dataset for this assignment was gathered in 1970 in the Boston metropolitan area. Each row corresponds to one US Census tract. These are geographic areas with a few thousand people used by the U.S. government in it's decennial census of the population. (The help menu entry refers to "towns" in a few places. These should read "census tracts".)
+The dataset is the Boston dataset in the MASS package.
+
+Note that the set of entries here is _not_ a sample of a larger population of Boston census tracts. It represents all census tracts in Boston (Though each entry itself may be a sample of the larger population in that tract.) We also can not say that Boston represents the entire US, since regions differ. For our purposes, let us assume that these census tracts are a sample of all census tracts in urban areas in the northeastern United States.
+
+```{r}
+## First load some packages and the data. You may have to install the MASS package first.
+## Also, note the package load order matters here. MASS and dplyr both have a select function. If you want to use dplyr's select, we need to run it last.
+MY_UNIQNAME = "cginiel"
+
+library(MASS)
+library(tidyverse)
+library(moderndive)
+library(skimr)
+library(dplyr)
+library(infer)
+
+boston <- Boston
+```
+
+
+### Question 1 (10 Points)
+Take a look at the data using one or more of the exploratory data analysis tools and techniques that you've learned in SI 544. Make sure to look at the help menu to understand the variables.
+
+Describe the shape of the distribution of the per capita crime rates. What does this say about crime and geography in Boston?
+```{r}
+skim(boston)
+```
+
+```{r}
+ggplot(boston, aes(x = crim)) +
+  xlab("Crime Rate") +
+  labs(title = "Boston Per Capita Crime Rate by Town") +
+  geom_histogram(binwidth = 2, color = "white")
+```
+
+#### Q1 Response
+The distribution of crime in Boston is right-skewed. Many observations fall near 0, meaning that the crime rates for most towns are extremely low. Put it terms of crime and geography, that would mean crime is not something one would have to worry about in many towns in Boston.
+
+
+### Question 2 (10 Points)
+
+Use bootstrapping with the percentile method to compute a 95% confidence interval for the average pupil-teacher ratio in urban, northeastern United States. Interpret your results in a complete sentence that a non-statistician would understand.
+```{r}
+# taking a look at our data...
+ggplot(boston, aes(x = ptratio)) +
+  xlab("Pupil-Teacher Ratio") +
+  labs(title = "Pupil-Teacher Ratio by Town") +
+  geom_histogram(binwidth = 0.5, color = "white")
+```
+
+```{r}
+# setting the seed
+set.seed(3000)
+```
+
+```{r}
+# grabbing our mean
+ptratio_sample <- boston %>% 
+  specify(response = ptratio) %>% 
+  calculate(stat = "mean")
+ptratio_sample
+```
+
+```{r}
+bootstrap_distribution <- boston %>% 
+  specify(response = ptratio) %>% 
+  generate(reps = 1000, type="bootstrap") %>% 
+  calculate(stat = "mean")
+bootstrap_distribution
+
+visualize(bootstrap_distribution)
+```
+
+```{r}
+percentile_ci <- bootstrap_distribution %>% 
+  get_confidence_interval(level = 0.95, type = "percentile")
+percentile_ci
+```
+
+```{r}
+visualize(bootstrap_distribution) + 
+  shade_confidence_interval(endpoints = c(percentile_ci$`2.5%`, percentile_ci$`97.5%`))
+```
+
+#### Q2 Response
+The visualization of the confidence intervals above suggests that 95% of the time, a town in the Northeastern United States will have a pupil-teacher ratio of roughly 18.26 to 18.65 pupils per one teacher, with a mean of 18.45. However, applying this limited data to the rest of the NE U.S. is questionable because a lot of assumptions are being made.
+
+### Question 3 (10 Points)
+
+Use the traditional method, using a t-distribution, to compute a 95% confidence interval for the average pupil-teacher ratio in urban, northeastern United States. (You can use t*=1.96.)
+
+```{r}
+# do we know how to conduct different t tests?
+
+t.test(boston$ptratio, NULL)
+
+t_star = 1.96
+x_bar = (t_star)*(sd(boston$ptratio)/(sqrt(506)))
+x_high = x_bar + mean(boston$ptratio)
+
+x_low = mean(boston$ptratio) - x_bar
+
+x_mean = (x_high + x_low)/2
+
+x_mean
+x_high
+x_low
+x_bar
+```
+
+#### Q3 Response
+Using the traditional method of finding a CI, we arrive at the same enpoints with a low average of 18.2669 and a high average of 18.64 pupils per teacher in a given town. I used the t.test() function to make sure I was on the right track with my manual calculations.
+
+
+### Question 4 (10 Points)
+
+Assume that urban northeastern US property tax rates are currently around 1.054%. (Actually, this is Boston. Just go with it.) We would like to know if urban northeastern US property tax rates are higher today than they were in 1970.
+
+Set up (but don't run it yet) a hypothesis test to examine this question. What are your null and alternative hypotheses? What is the cut-off for a p-value that you will use to reject the null?
+
+#### Q4 Response
+
+Null Hypothesis: Northeastern US property tax rates have not changed since 1970.
+
+old tax rate = new tax rate
+
+Alternative Hypothesis: Northeastern property tax rates are higher now than they were in 1970.
+
+old tax rate < new tax rate
+
+Cut-off p-value (alpha): a = 0.01
+
+### Question 5 (10 Points)
+Use the traditional method, with a test-statistic, to calculate the p-value for the hypothesis test you wrote out in Question 4. Write your conclusion in a few complete sentences that would make sense to a random Boston citizen.
+
+```{r}
+s = sd(boston$tax)/10000
+x_mean = mean(boston$tax)/10000
+x_null = 0.01054
+n = 506
+
+t_stat = (x_mean - x_null)/(s/sqrt(n))
+t_stat
+
+p_value <- pt(t_stat, 505)
+p_value
+
+```
+
+#### Q5 Response
+Based on the calculations of our p-value, we fail to reject the null hypothesis. This means that we cannot say with certainty that tax rates are higher today than they were in the 1970s. 
+
+To a Boston citizen I would say, with the given data, our calculations show that the chances of tax rates being higher today than they were 50 years ago are virtually impossible.
+
+### Question 6 (10 Points)
+
+Use the infer package to calculate the p-value for the hypothesis test you wrote out in Question 4. Write your conclusion in a few complete sentences that would make sense to a random Boston citizen. Hint: Look at the ModernDive textbook, Appendix B.2.4.
+
+```{r}
+tax_frame <- boston %>%
+  mutate(tax_adjust = (tax/10000))
+```
+
+```{r}
+tax_boots <- tax_frame %>% 
+  specify(response = tax_adjust) %>% 
+  generate(reps = 1000, type = "bootstrap") %>%
+  calculate(stat = "mean")
+tax_boots %>% visualize()
+```
+
+```{r}
+x_bar <- 0.01054
+```
+
+```{r}
+pvalue <- tax_boots %>%
+  get_pvalue(obs_stat = x_bar, direction = "greater")
+pvalue
+```
+```{r}
+tax_boots %>%
+  visualize(obs_stat = x_bar, direction = "greater")
+```
+
+#### Q6 Response
+Using the bootstrapping method for this test, our generated sample suggests that it is incredibly rare that we would find any instance of Boston tax rates being higher today than they were in 1970. This method gave us the same p-value as the traditional method. 
+
+There is potential merit in exploring the possibility of inflation's influence on these numbers. However, we don't have statistical data for that within our data set.
+
+### Question 7 (10 Points)
+
+Now we are curious about what traits are related to high-crime areas. Run a regression that predicts per capita crime rate based on the following variables: zn, chas, nox, rm, age, dis, and rad. 
+
+(a) Make sure that your regression table or regression summary is visible in your knit document. (b) Which variables don't seem to be (statistically significantly) related to per capita crime rates? Write your answer in sentences that would make sense to a random Boston citizen. (c) What is the R^2 value?
+
+```{r}
+new_frame <- boston %>%
+  dplyr::select(crim, zn, chas, nox, rm, age, dis, rad)
+
+crime_model <- lm(crim ~ zn + chas + nox + rm + age + dis + rad, new_frame)
+# crime_model <- lm(crim ~ zn * chas * nox * rm * age * dis * rad, new_frame)
+
+all_crime_summary <- get_regression_summaries(crime_model)
+all_crime_summary
+```
+```{r}
+all_crime_table <- get_regression_table(crime_model)
+all_crime_table
+```
+#### Q7 Response
+Based on my decision to run a parallel slopes model, I get an R^2 value of 0.416. If we assume an alpha of 0.05, we see that chas, nox, and age are not statistically significant to per capita crime rate by town because their p-values fall outside of our alpha value's range. 
+
+To a Boston citizen, I would say that it is unlikely that nitrous oxide concentration, proximity to the Charles River, and the proportion of owner-occupied units built prior to 1940 have a significant relationship to the number of crimes committed per town.
+
+
+### Question 8 (10 Points)
+
+Remember how the distribution of per capita crime looked? This means that the data is right-skewed. In cases like this we might try log-transforming the data. If we find a stronger statistical relationship with the log-transformed data, then there might be an exponential process that generated the original data. (Because logarithms undo exponents.) For example if you suspect that the relationship between variables x and y is $y=a*b^x$, then the log-transformed equation is $log(y)=log(a)+x*log(b)$ or, rewriting the constants, $log(y)=A + Bx$. So x and log(y) will be linearly related, and we can do a linear regression. 
+For more more details on logarithms, you can check out:
+https://www.statisticshowto.datasciencecentral.com/probability-and-statistics/statistics-definitions/logarithms/
+
+Create a new variable in the boston data frame called log_crim. This should be the natural logarithm of the per capita crime rate. Then run the regression that you ran in the previous problem, except replace crim with log_crim.
+
+(a) Make sure that your regression table or regression summary is visible in your knit document. (b) Which variables don't seem to be (statistically significantly) related to the logarithm of per capita crime rates? Write your answer in sentences that would make sense to a random Boston citizen.
+
+```{r}
+new_frame <- boston %>%
+  mutate(log_crim = log(crim))
+
+log_crime_model <- lm(log_crim ~ zn + chas + nox + rm + age + dis + rad, new_frame)
+
+log_crime_regression_summary <- get_regression_summaries(log_crime_model)
+log_crime_regression_summary
+```
+```{r}
+log_crime_regression_table <- get_regression_table(log_crime_model)
+log_crime_regression_table
+```
+
+#### Q8 Response
+For this modified regression, with an R^2 of 0.866, a few changes happen. If we set an alpha value of 0.05, we now see that how close someone is to the Charles River and the average distances to Boston employment centers seem to not be statistically significant to the amount of crime committed in each town. With an alpha value of 0.01, average number of rooms per dwelling is added to that list.
+
+To a Boston citizen, I would say that the amount of rooms per house, how close one is to the Charles River, and how close one is to a Boston employment center does not influence a town's crime rate.
+
+
+### Question 9 (10 points)
+
+Compare the R^2 values of the two regressions from Q7 and Q8. Which regression seems to have a stronger relationship? Should we use crim or log_crim in future analysis? (You should also be able to support your explanation by looking at graphs of the residuals for each regression. Though you don't have to do that here.)
+
+```{r}
+crime_points <- get_regression_points(crime_model)
+
+ggplot(crime_points, aes(x = residual)) +
+  geom_histogram(binwidth = 2.5, color = "white") +
+  labs(x = "Residual")
+```
+```{r}
+all_crime_summary
+```
+
+```{r}
+log_crime_points <- get_regression_points(log_crime_model)
+
+ggplot(log_crime_points, aes(x = residual)) +
+  geom_histogram(binwidth = .5, color = "white") +
+  labs(x = "Residual")
+```
+```{r}
+log_crime_regression_summary
+```
+
+
+#### Q9 Response
+Both regression models demonstrate a relatively normal distribution when graphing their residuals. However, there are much more extreme outliers for the original crime model than for the log_crime model. If I had to choose a model to use for future analysis, I would choose the log_crime model. While log_crime isn't as "tightly fit" as crime, the deviation from 0 is less extreme. 
+
