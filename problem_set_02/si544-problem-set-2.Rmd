@@ -1,0 +1,281 @@
+---
+title: "Problem Set 2 - College Admissions Data"
+author: "SI 544 Instruction Team"
+date: "10/25/2019"
+output: html_document
+---
+
+## Introduction
+
+The total score for this assignment will be 100 points, consisting of:
+  - 90 points: Homework Questions
+  - 10 points: Overall quality of spelling, grammar, punctuation, etc. of written sentences.
+  
+As in lecture and discussion, there are several ways to approach and answer these questions! There may not be a "best solution", but instead a variety of ways to interpret and analyze a given task. Be thoughtful in your responses below your code to explain why you chose the methods and representations in your analysis when prompted for a response.
+
+For further reference regarding quality writing, feel free to refer to Strunk & White’s Elements of Style: https://drive.google.com/file/d/1L0P7xJwjUGBvyb49mL3dw1Bt7hzRTiTl/view?usp=sharing 
+  
+## The Data
+
+The data set for this assignment consists of college admissions data. It comes from an open data set available via https://www.kaggle.com/mohansacharya/graduate-admissions .  
+
+The dataset contains several parameters which are considered important during the application for Masters Programs. 
+The parameters included are:
+
+1. GRE Scores ( out of 340 ) 
+2. TOEFL Scores ( out of 120 ) 
+3. University Rating ( out of 5 ) 
+4. Statement of Purpose and Letter of Recommendation Strength ( out of 5 ) 
+5. Undergraduate GPA ( out of 10 ) 
+6. Research Experience ( either 0 or 1 ) 
+7. Chance of Admit ( ranging from 0 to 1 )
+
+The full citation for the data is:
+
+Mohan S Acharya, Asfia Armaan, Aneeta S Antony : A Comparison of Regression Models for Prediction of Graduate Admissions, IEEE International Conference on Computational Intelligence in Data Science 2019.
+
+Copy the file 'Admission_Predict.csv' from the read only folder into your working directory, fill in your name into the string assigned to *MY_UNIQNAME* , then execute the following code block to load the packages and data into your environment. 
+
+```{r loadlibraries}
+
+MY_UNIQNAME = "cginiel"
+
+# Initial setup for our environment
+library(tidyverse)
+library(moderndive)
+library(ggplot2)
+
+# Reading the file in from your working directory
+data <- read_csv('Admission_Predict.csv')
+```
+
+
+```{r}
+data <- data %>% select(gre = "GRE Score", toefl = "TOEFL Score", university_rating = `University Rating`, sop = SOP, lor = LOR, cgpa = CGPA, research=Research,admit = `Chance of Admit`) %>% mutate(research=factor(research))
+```
+
+### Question 1 (5 points)
+
+Explain what the previous R code block does.
+
+#### Q1 Response:
+
+The previous R code block (above) selects columns from our dataset and displays only those columns, with their names modified as a way to make coding with them easier. For example, "GRE Score" is renamed to gre. The mutate function has a factor function within it, making the "research" column our categorical variable. You can see that R knows this based on the glimpse(data) function below, where research is labeled as 'fct'.
+
+```{r}
+admissions_data <- data
+  
+glimpse(admissions_data)
+```
+
+
+### Question 2 (10 points)
+
+Describe the shape of the distribution of the chance of admission.  If you decide to use a histogram choose your width of your bins carefully.
+
+```{r Question 2}
+ggplot(admissions_data, aes(x = admit)) +
+  xlab("Chance of admission") +
+  ylab("Count") +
+  labs(title = "Amount of varying chances of admission") +
+  geom_histogram(binwidth = .02, col = "white")
+```
+
+#### Q2 Response:
+
+The chance of admission histogram follows a mostly normal distribution. There is a clear center where a majority of the counts lie, and the counts outside of the middle ~60% fall off in a somewhat predictable pattern. 
+
+### Question 3 (10 points)
+
+Create a plot of chance of admission as the outcome variable vs. GRE score as the explanatory variable that shows the line of best fit. Label your axes and use a title or caption for the visualization.  Does the lowest GRE score have the least chance of admission?
+
+```{r question_3}
+ggplot(admissions_data, aes(x = gre, y = admit)) +
+  xlab("GRE Score") +
+  ylab("Chance of admission") +
+  labs(title = "Chance of admission as result of GRE score") +
+  geom_jitter()
+```
+
+```{r}
+lowest_gre <- admissions_data %>%
+  group_by(gre) %>%
+  select(gre, admit) %>%
+  arrange(gre)
+lowest_gre
+
+lowest_admit <- admissions_data %>%
+  group_by(admit) %>%
+  select(gre, admit) %>%
+  arrange(admit)
+lowest_admit
+```
+
+#### Q3 Response:
+
+No, the lowest GRE score does not have the least chance of admission. The lowest GRE score (290) has a 45% chance of admission. The lowest chance of admission (34%) has a GRE score of 298. (Also, I jittered the points after using geom_point(alpha = 0.2) and discovering there were some overlapping points.)
+
+### Question 4 (15 points)
+
+Create a regression model using chance of admission as the outcome variable and GRE score as the explanatory variable.  What are the estimates for the coefficients (intercept and GRE score)? 
+
+```{r Question_4}
+admissions_data_regression_table <- get_regression_table(lm(admit ~ gre, admissions_data))
+
+admissions_data_regression_table
+```
+
+
+```{r Question 4}
+admissions_data_slope <- admissions_data_regression_table$estimate[2]
+admissions_data_slope
+
+admissions_data_intercept <- admissions_data_regression_table$estimate[1]
+admissions_data_intercept
+```
+
+```{r}
+ggplot(admissions_data, aes(x = gre, y = admit)) +
+  xlab("GRE Score") +
+  ylab("Chance of admission") +
+  labs(title = "Chance of admission as result of GRE score") +
+  geom_jitter() +
+  geom_smooth(method="lm",se=FALSE)
+```
+
+
+#### Q4 Response:
+
+The estimate for the intercept is -2.436. (Which, considering where our data lies, isn't super helpful for this visualization. I don't even think you can score a 0 on the GRE.) The slope is 0.01 (in percent chance of admission). 
+
+### Question 5 (10 points)
+
+Create a visualization that shows the relationship between Cumulative GPA and the Chance of Admission.  
+Use two different colors of lines to show the difference that having research experience makes.  
+Describe the effect that having research experience appears to have.
+
+```{r question_5}
+ggplot(admissions_data, aes(x = cgpa, y = admit, color = research)) +
+  geom_point() +
+  xlab("Cumulative GPA") +
+  ylab("Chance of Admission") +
+  labs(title = "Chance of admission based on cumulative GPA and research experience", color = "Research") +
+  geom_smooth(method="lm",se=FALSE)
+```
+
+#### Q5 Response:
+
+Students with research experience 1) tend to have higher cumulative GPAs and 2) tend to have a higher chance of admission.
+
+### Question 6 (15 points)
+Create a regression model that uses chance of admission as the outcome variable and 
+Cumulative GPA *and* research experience as the explanatory variables.  What is the 
+expected (estimated) value of the chance of admission for an individual with a cumulative GPA of 9.0
+who has research experience?
+
+```{r Question 6}
+admissions_model_interaction <- lm(admit ~ cgpa * research, admissions_data)
+
+am_int_reg <- get_regression_table(admissions_model_interaction)
+am_int_reg
+```
+```{r}
+am_int_points <- get_regression_points(admissions_model_interaction)
+am_int_points
+```
+```{r}
+y = (-0.834 + 0.178 * 9 - 0.152 * 1 + 0.022 * 9 * 1)
+y
+
+y_alt = (am_int_points$admit_hat[12])
+y_alt
+
+y_other_alt = (am_int_reg$estimate[1] + am_int_reg$estimate[2] * 9 + am_int_reg$estimate[3] * 1 + am_int_reg$estimate[4] * 9 * 1)
+y_other_alt
+
+```
+
+
+#### Q6 Response:
+
+In the code block above, my first method at arriving at the estimated value of a student's chance of admission who possesses research experience, based on a cumulative GPA of 9.0, was to plug in the estimate numbers to the interaction model equation from our textbook. To check that score, I was lucky enough to find a regression point that matched the question's criteria exactly. I compared that regression point to my manually entered data, and they matched up closely. I furthermore ran the "codier" version of the interactive multiple regression equation and arrived at the same answer as my first method, y = 0.814 percent.
+
+### Question 7 (10 points)
+Is Cumulative GPA a good predictor of GRE score?  Explain your answer.
+
+```{r question_7}
+ggplot(admissions_data, aes(x = cgpa, y = gre)) +
+  xlab("Cumulative GPA") +
+  ylab("GRE Score") +
+  labs(title = "GRE score as result of cumulative GPA") +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method="lm",se=FALSE)
+```
+```{r}
+gpa_model <- lm(gre ~ cgpa, admissions_data)
+
+#gpa_table <- get_regression_table(gpa_model)
+#gpa_table
+
+gpa_regression_summary <- get_regression_summaries(gpa_model)
+gpa_regression_summary
+```
+
+```{r}
+admissions_data %>%
+  select(cgpa, gre) %>%
+  cor()
+
+# hmmm...
+```
+#### Q7 Response:
+
+Cumulative GPA is not a great predictor of GRE score. When running a regression summary on the linear model for the two, we see that r squared is 69.4%, which shows that there is a fair amount of variance not being captured.
+
+### Question 8 (15 points)
+Which is more important (for the purposes of being admitted): (a) to have a strong letter of reference or (b) to have a strong statement of purpose? Explain your answer.
+
+```{r question_8}
+ggplot(admissions_data, aes(x = sop, y = admit)) +
+  geom_jitter() +
+  xlab("Strength of statement of purpose") +
+  ylab("Chance of admission") +
+  labs(title = "Chance of admission as a result of statement of purpose") +
+  geom_smooth(method="lm",se=FALSE)
+
+ggplot(admissions_data, aes(x = lor, y = admit)) +
+  geom_jitter() +
+  xlab("Strength of letter of recommendation") +
+  ylab("Chance of admission") +
+  labs(title = "Chance of admission as a result of letter of recommendation") +
+  geom_smooth(method="lm",se=FALSE)
+```
+```{r}
+sop_regression_table <- get_regression_table(lm(admit ~ sop, admissions_data))
+sop_regression_table
+
+lor_regression_table <- get_regression_table(lm(admit ~ lor, admissions_data))
+lor_regression_table
+```
+
+
+
+```{r}
+sop_regression_summary <- get_regression_summaries(lm(admit ~ sop, admissions_data))
+sop_regression_summary
+
+lor_regression_summary <- get_regression_summaries(lm(admit ~ lor, admissions_data))
+lor_regression_summary
+```
+```{r}
+admissions_data %>%
+  select(admit, sop, lor) %>% 
+  cor()
+```
+```{r}
+admit_parallel_model <- lm(admit ~ lor + sop, admissions_data)
+```
+
+
+#### Q8 Response:
+Both letters of recommendation and statements of purpose have relatively low r squared values as they correspond to chance of admission. r squared for sop = 45.7%, r sqaured for lor = 44.9%. Each's correlation to chance of admission is relatively low as well. Based on their similarity, neither are more important for improving chance of admission. Or, you could say, each is the same importance. In any case, both pull less weight for chance of admission than other factors such as cumulative GPA or GRE score.
